@@ -154,31 +154,7 @@ GET /api/v1/museum/query?question=秦朝文物&limit=10
 }
 ```
 
-### 用户登录接口
 
-**请求：**
-```bash
-POST /api/v1/users/login
-Content-Type: application/json
-
-{
-  "username": "user123",
-  "password": "password123"
-}
-```
-
-**响应：**
-```json
-{
-  "status": "success",
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": 1,
-    "username": "user123",
-    "level": "user"
-  }
-}
-```
 
 ### 健康检查接口
 
