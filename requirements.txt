@@ -1,0 +1,17 @@
+fastapi
+httpx
+loguru
+matplotlib
+mdurl
+numpy
+pandas
+pydantic
+pydantic_settings
+pytest
+redis
+Requests
+seaborn
+SQLAlchemy
+streamlit
+uvicorn
+python-multipart

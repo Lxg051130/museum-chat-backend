@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dify 会话式流式问答</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        body {
+            display: flex;
+            height: 100vh;
+            background-color: #f5f7fa;
+        }
+
+        /* 左侧会话列表 */
+        .conversation-sidebar {
+            width: 280px;
+            background-color: #fff;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+        }
+        .new-conv-btn {
+            padding: 12px;
+            background-color: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .new-conv-btn:hover {
+            background-color: #1d4ed8;
+        }
+        .conv-list-title {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        .conv-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .conv-item {
+            padding: 10px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .conv-item:hover {
+            background-color: #f3f4f6;
+        }
+        .conv-item.active {
+            background-color: #eff6ff;
+            color: #2563eb;
+            font-weight: 500;
+        }
+
+        /* 右侧聊天区域 */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .chat-header {
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+        .message-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .message {
+            max-width: 80%;
+            display: flex;
+            gap: 8px;
+        }
+        .message.user {
+            align-self: flex-end;
+        }
+        .message.assistant {
+            align-self: flex-start;
+        }
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .message.user .message-avatar {
+            background-color: #2563eb;
+            color: #fff;
+        }
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        .message.user .message-content {
+            background-color: #2563eb;
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .message.assistant .message-content {
+            background-color: #fff;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+            color: #111827;
+        }
+        .loading {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        /* 输入区域 */
+        .input-container {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        #question-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            resize: none;
+            height: 60px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        #question-input:focus {
+            border-color: #2563eb;
+        }
+        #send-btn {
+            padding: 12px 20px;
+            background-color: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        #send-btn:hover {
+            background-color: #1d4ed8;
+        }
+        #send-btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        /* ====== 新增：语音按钮样式 ====== */
+        #voice-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background-color: #fff;
+            color: #2563eb;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        #voice-btn:hover {
+            background-color: #f3f4f6;
+        }
+        #voice-btn.recording {
+            background-color: #ef4444;
+            color: #fff;
+            border-color: #ef4444;
+        }
+        #voice-btn:disabled {
+            background-color: #f9fafb;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .voice-loading {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: none;
+            z-index: 999;
+        }
+        .voice-loading.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- 左侧会话列表 -->
+    <div class="conversation-sidebar">
+        <button class="new-conv-btn" onclick="createNewConversation()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            新对话
+        </button>
+        <div class="conv-list-title">历史会话</div>
+        <div class="conv-list" id="conversation-list"></div>
+    </div>
+
+    <!-- 右侧聊天区域 -->
+    <div class="chat-container">
+        <div class="chat-header" id="chat-title">新对话</div>
+        <div class="message-list" id="message-list"></div>
+        <div class="input-container">
+            <textarea id="question-input" placeholder="请输入你的问题（如：商青铜树的高度？）"></textarea>
+            <!-- ====== 新增：麦克风按钮 ====== -->
+            <button id="voice-btn" onclick="toggleVoiceRecording()" title="语音输入">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+            </button>
+            <button id="send-btn" onclick="sendMessage()" disabled>发送</button>
+        </div>
+    </div>
+
+    <!-- ====== 新增：语音识别加载提示 ====== -->
+    <div class="voice-loading" id="voice-loading">正在识别语音...</div>
+
+    <script>
+        // 核心状态管理（用localStorage持久化，刷新不丢失）
+        const state = {
+            userId: "user123",  // 固定用户ID，可改为动态获取
+            currentConversationId: localStorage.getItem("currentConvId") || "",
+            conversationList: [],
+            messageHistory: JSON.parse(localStorage.getItem("messageHistory") || "[]"),
+            isStreaming: false,
+            // ====== 新增：语音相关状态（改为WAV格式） ======
+            isRecording: false,  // 是否正在录音
+            mediaRecorder: null, // 录音对象
+            audioChunks: [],     // 录音数据块
+            // 改为WAV相关配置
+            RECORDING_SOURCE_FORMAT: "audio/webm;codecs=opus", // 浏览器原生支持的格式
+            TARGET_FORMAT: "audio/wav" // 最终要传输的格式
+        };
+
+        // 初始化页面
+        window.onload = async function() {
+            // 监听输入框变化，启用/禁用发送按钮
+            const input = document.getElementById("question-input");
+            input.addEventListener("input", () => {
+                document.getElementById("send-btn").disabled = input.value.trim() === "";
+            });
+
+            // 加载会话列表
+            await loadConversationList();
+            // 加载当前会话的历史消息
+            if (state.currentConversationId) {
+                await loadConversationMessages(state.currentConversationId);
+                // 高亮当前会话
+                highlightActiveConversation(state.currentConversationId);
+                // 更新标题
+                document.getElementById("chat-title").textContent = "会话 " + state.currentConversationId.slice(0, 8);
+            }
+
+            // ====== 新增：检查浏览器录音权限 ======
+            await checkVoicePermission();
+        };
+
+        // 1. 创建新对话
+        function createNewConversation() {
+            state.currentConversationId = "";
+            state.messageHistory = [];
+            // 清空消息区
+            document.getElementById("message-list").innerHTML = "";
+            // 更新标题
+            document.getElementById("chat-title").textContent = "新对话";
+            // 取消所有会话的高亮
+            document.querySelectorAll(".conv-item").forEach(item => {
+                item.classList.remove("active");
+            });
+            // 清空输入框
+            document.getElementById("question-input").value = "";
+            // 持久化状态
+            localStorage.setItem("currentConvId", "");
+            localStorage.setItem("messageHistory", "[]");
+        }
+
+        // 2. 加载会话列表
+        async function loadConversationList() {
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/v1/conversations/list?user_id=${state.userId}&limit=20&sorted_by=updated_at`);
+                const data = await response.json();
+                state.conversationList = data.data || [];
+                
+                // 渲染会话列表
+                const listEl = document.getElementById("conversation-list");
+                listEl.innerHTML = "";
+                state.conversationList.forEach(conv => {
+                    const item = document.createElement("div");
+                    item.className = "conv-item";
+                    item.textContent = conv.name || `会话 ${conv.id.slice(0, 8)}`;
+                    item.setAttribute("data-conv-id", conv.id);
+                    item.onclick = () => switchConversation(conv.id);
+                    listEl.appendChild(item);
+                });
+            } catch (error) {
+                console.error("加载会话列表失败：", error);
+                // 本地模拟会话列表（后端未实现时用）
+                if (localStorage.getItem("mockConvList")) {
+                    state.conversationList = JSON.parse(localStorage.getItem("mockConvList"));
+                    renderConversationList();
+                }
+            }
+        }
+
+        // 3. 切换会话
+        async function switchConversation(conversationId) {
+            if (state.isStreaming) return;
+            
+            state.currentConversationId = conversationId;
+            // 高亮当前会话
+            highlightActiveConversation(conversationId);
+            // 更新标题
+            document.getElementById("chat-title").textContent = `会话 ${conversationId.slice(0, 8)}`;
+            // 加载该会话的历史消息
+            await loadConversationMessages(conversationId);
+            // 持久化状态
+            localStorage.setItem("currentConvId", conversationId);
+        }
+
+        // 4. 加载会话历史消息
+        async function loadConversationMessages(conversationId) {
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/v1/conversations/messages?conversation_id=${conversationId}&user_id=${state.userId}&limit=20`);
+                const data = await response.json();
+                state.messageHistory = data.data || [];
+                // 渲染历史消息
+                renderMessageHistory();
+                // 持久化历史消息
+                localStorage.setItem("messageHistory", JSON.stringify(state.messageHistory));
+            } catch (error) {
+                console.error("加载会话消息失败：", error);
+                // 本地模拟历史消息
+                state.messageHistory = JSON.parse(localStorage.getItem("messageHistory") || "[]");
+                renderMessageHistory();
+            }
+        }
+
+        // 5. 发送流式消息
+        async function sendMessage() {
+            const inputEl = document.getElementById("question-input");
+            const question = inputEl.value.trim();
+            if (!question || state.isStreaming) return;
+
+            // 禁用发送按钮
+            document.getElementById("send-btn").disabled = true;
+            state.isStreaming = true;
+
+            // 添加用户消息到历史
+            const userMessage = {
+                role: "user",
+                content: question,
+                id: Date.now().toString()
+            };
+            state.messageHistory.push(userMessage);
+            renderMessageHistory();
+            inputEl.value = "";
+
+            // 添加载中的助手消息
+            const loadingMsgEl = addLoadingMessage();
+
+            try {
+                // 发送POST请求到后端流式接口
+                const response = await fetch("http://127.0.0.1:8000/api/v1/museum/chat", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*"
+                    },
+                    body: JSON.stringify({
+                        query: question,
+                        user_id: state.userId,
+                        conversation_id: state.currentConversationId
+                    }),
+                    cache: "no-cache"
+                });
+
+                if (!response.ok) {
+                    throw new Error(`请求失败：${response.status} ${response.statusText}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let assistantAnswer = "";
+                let finalConversationId = state.currentConversationId;
+
+                // 流式读取响应
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // 解码二进制数据
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split("\n\n");
+
+                    // 解析每一行SSE数据
+                    for (const line of lines) {
+                        if (!line || !line.startsWith("data: ")) continue;
+                        
+                        const dataStr = line.slice(6).trim();
+                        if (!dataStr) continue;
+
+                        try {
+                            const data = JSON.parse(dataStr);
+                            
+                            // 更新会话ID（新对话时会返回）
+                            if (data.conversation_id) {
+                                finalConversationId = data.conversation_id;
+                                state.currentConversationId = finalConversationId;
+                                // 更新标题
+                                document.getElementById("chat-title").textContent = `会话 ${finalConversationId.slice(0, 8)}`;
+                                // 持久化会话ID
+                                localStorage.setItem("currentConvId", finalConversationId);
+                            }
+
+                            // 拼接流式回答
+                            if (data.chunk && !data.finished) {
+                                assistantAnswer += data.chunk;
+                                // 更新加载中的消息
+                                loadingMsgEl.querySelector(".message-content").textContent = assistantAnswer;
+                            }
+
+                            // 流式结束，保存完整回答
+                            if (data.finished) {
+                                // 移除加载中的消息
+                                loadingMsgEl.remove();
+                                // 添加完整的助手消息
+                                const assistantMessage = {
+                                    role: "assistant",
+                                    content: data.full_answer,
+                                    id: (Date.now() + 1).toString()
+                                };
+                                state.messageHistory.push(assistantMessage);
+                                // 重新渲染历史消息
+                                renderMessageHistory();
+                                // 持久化历史消息
+                                localStorage.setItem("messageHistory", JSON.stringify(state.messageHistory));
+                                // 刷新会话列表
+                                await loadConversationList();
+                                // 高亮当前会话
+                                highlightActiveConversation(finalConversationId);
+                                break;
+                            }
+                        } catch (jsonError) {
+                            console.warn("JSON解析失败：", jsonError, "原始数据：", dataStr);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("流式对话失败：", error);
+                // 替换加载中的消息为错误提示
+                loadingMsgEl.querySelector(".message-content").textContent = `❌ 查询失败：${error.message}`;
+            } finally {
+                // 恢复状态
+                state.isStreaming = false;
+                document.getElementById("send-btn").disabled = false;
+            }
+        }
+
+        // ========== 辅助渲染函数 ==========
+        // 渲染历史消息
+        function renderMessageHistory() {
+            const listEl = document.getElementById("message-list");
+            listEl.innerHTML = "";
+            
+            state.messageHistory.forEach(msg => {
+                const msgEl = createMessageElement(msg.role, msg.content);
+                listEl.appendChild(msgEl);
+            });
+
+            // 滚动到底部
+            listEl.scrollTop = listEl.scrollHeight;
+        }
+
+        // 创建消息元素
+        function createMessageElement(role, content) {
+            const msgEl = document.createElement("div");
+            msgEl.className = `message ${role}`;
+            
+            const avatarText = role === "user" ? "我" : "AI";
+            msgEl.innerHTML = `
+                <div class="message-avatar">${avatarText}</div>
+                <div class="message-content">${content}</div>
+            `;
+            return msgEl;
+        }
+
+        // 添加加载中的助手消息
+        function addLoadingMessage() {
+            const listEl = document.getElementById("message-list");
+            const loadingEl = createMessageElement("assistant", "正在思考中...");
+            loadingEl.querySelector(".message-content").classList.add("loading");
+            listEl.appendChild(loadingEl);
+            listEl.scrollTop = listEl.scrollHeight;
+            return loadingEl;
+        }
+
+        // 高亮当前会话
+        function highlightActiveConversation(conversationId) {
+            document.querySelectorAll(".conv-item").forEach(item => {
+                if (item.getAttribute("data-conv-id") === conversationId) {
+                    item.classList.add("active");
+                } else {
+                    item.classList.remove("active");
+                }
+            });
+        }
+
+        // 渲染会话列表（本地模拟用）
+        function renderConversationList() {
+            const listEl = document.getElementById("conversation-list");
+            listEl.innerHTML = "";
+            state.conversationList.forEach(conv => {
+                const item = document.createElement("div");
+                item.className = `conv-item ${conv.id === state.currentConversationId ? "active" : ""}`;
+                item.textContent = conv.name || `会话 ${conv.id.slice(0, 8)}`;
+                item.setAttribute("data-conv-id", conv.id);
+                item.onclick = () => switchConversation(conv.id);
+                listEl.appendChild(item);
+            });
+        }
+
+        // ========== 新增：语音相关核心功能（改为WAV格式） ==========
+        // 检查浏览器录音权限
+        async function checkVoicePermission() {
+            try {
+                // 1. 检查MediaRecorder支持
+                if (!window.MediaRecorder) {
+                    alert("你的浏览器不支持语音录制，请使用Chrome/Firefox/Edge等现代浏览器");
+                    document.getElementById("voice-btn").disabled = true;
+                    return;
+                }
+
+                // 2. 提前请求麦克风权限
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log("麦克风权限已获取");
+
+            } catch (error) {
+                console.error("麦克风权限检查失败：", error);
+                alert(`语音功能初始化失败：${error.message}\n请允许麦克风权限并使用现代浏览器`);
+                document.getElementById("voice-btn").disabled = true;
+            }
+        }
+
+        // 切换录音状态（开始/停止）
+        async function toggleVoiceRecording() {
+            // 禁止在流式请求中录音
+            if (state.isStreaming) {
+                alert("当前正在处理请求，请等待完成后再使用语音输入");
+                return;
+            }
+
+            const voiceBtn = document.getElementById("voice-btn");
+            
+            // 开始录音
+            if (!state.isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    
+                    // 创建MediaRecorder（浏览器原生格式）
+                    state.mediaRecorder = new MediaRecorder(stream, { 
+                        mimeType: state.RECORDING_SOURCE_FORMAT 
+                    });
+                    state.audioChunks = [];
+
+                    // 收集录音数据
+                    state.mediaRecorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) {
+                            state.audioChunks.push(e.data);
+                        }
+                    };
+
+                    // 录音停止后自动转换为WAV并识别
+                    state.mediaRecorder.onstop = async () => {
+                        await convertWebmToWavAndRecognize();
+                        // 停止所有音轨
+                        state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                        // 重置状态
+                        voiceBtn.classList.remove("recording");
+                        voiceBtn.innerHTML = `
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                                <line x1="8" y1="23" x2="16" y2="23"></line>
+                            </svg>
+                        `;
+                        state.isRecording = false;
+                    };
+
+                    // 开始录音
+                    state.mediaRecorder.start();
+                    state.isRecording = true;
+                    // 更新按钮样式
+                    voiceBtn.classList.add("recording");
+                    voiceBtn.innerHTML = `
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
+                        </svg>
+                    `;
+                    console.log("开始录音，源格式：", state.RECORDING_SOURCE_FORMAT);
+
+                } catch (error) {
+                    console.error("开始录音失败：", error);
+                    alert(`录音失败：${error.message}\n请检查麦克风权限或设备`);
+                }
+            } 
+            // 停止录音
+            else {
+                if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
+                    state.mediaRecorder.stop();
+                    console.log("停止录音，共收集", state.audioChunks.length, "个数据块");
+                }
+            }
+        }
+
+        // 将WebM转换为WAV格式（核心）
+        async function convertWebmToWav(audioBlob) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const fileReader = new FileReader();
+
+                    fileReader.onload = async (e) => {
+                        try {
+                            // 解码WebM音频数据
+                            const audioBuffer = await audioContext.decodeAudioData(e.target.result);
+                            
+                            // 转换为WAV格式
+                            const wavData = audioBufferToWav(audioBuffer);
+                            const wavBlob = new Blob([wavData], { type: state.TARGET_FORMAT });
+                            
+                            resolve(wavBlob);
+                        } catch (error) {
+                            reject(new Error(`音频解码失败：${error.message}`));
+                        }
+                    };
+
+                    fileReader.onerror = (error) => {
+                        reject(new Error(`文件读取失败：${error.message}`));
+                    };
+
+                    fileReader.readAsArrayBuffer(audioBlob);
+                } catch (error) {
+                    reject(new Error(`转换初始化失败：${error.message}`));
+                }
+            });
+        }
+
+        // AudioBuffer转WAV格式（工具函数）
+        function audioBufferToWav(buffer) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const bitsPerSample = 16;
+            const bytesPerSample = bitsPerSample / 8;
+            const blockAlign = numChannels * bytesPerSample;
+
+            // 收集所有通道的样本数据
+            let samples = [];
+            for (let c = 0; c < numChannels; c++) {
+                samples.push(buffer.getChannelData(c));
+            }
+
+            // 计算总样本数
+            const numSamples = buffer.length * numChannels;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = numSamples * bytesPerSample;
+
+            // 创建WAV文件头
+            const header = new ArrayBuffer(44);
+            const view = new DataView(header);
+
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            
+            // fmt subchunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // subchunk1Size
+            view.setUint16(20, 1, true);  // PCM format
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            
+            // data subchunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            // 将样本数据写入WAV
+            const wavBytes = new Uint8Array(44 + dataSize);
+            wavBytes.set(new Uint8Array(header), 0);
+            
+            const offset = 44;
+            for (let i = 0; i < buffer.length; i++) {
+                for (let c = 0; c < numChannels; c++) {
+                    const sample = Math.max(-1, Math.min(1, samples[c][i]));
+                    wavBytes.setInt16(offset + (i * blockAlign) + (c * bytesPerSample), sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                }
+            }
+
+            return wavBytes;
+        }
+
+        // 辅助函数：写入字符串到DataView
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        // 处理录音数据，转换为WAV后调用语音转文字接口
+        async function convertWebmToWavAndRecognize() {
+            if (state.audioChunks.length === 0) {
+                alert("未检测到录音数据，请重新录制");
+                return;
+            }
+
+            // 显示加载提示
+            const loadingEl = document.getElementById("voice-loading");
+            loadingEl.classList.add("show");
+
+            try {
+                // 1. 创建WebM Blob
+                const webmBlob = new Blob(state.audioChunks, { type: state.RECORDING_SOURCE_FORMAT });
+                
+                // 2. 转换为WAV格式
+                console.log("开始转换WebM到WAV...");
+                const wavBlob = await convertWebmToWav(webmBlob);
+                
+                // 3. 创建WAV文件（强制.wav后缀）
+                const fileName = `voice-${Date.now()}.wav`;
+                const audioFile = new File([wavBlob], fileName, { 
+                    type: state.TARGET_FORMAT 
+                });
+
+                // 4. 校验文件格式
+                const fileExt = audioFile.name.split(".").pop().toLowerCase();
+                if (fileExt !== "wav") {
+                    throw new Error(`音频文件后缀错误：${fileExt}，要求为wav`);
+                }
+                console.log("生成WAV文件：", audioFile.name, "格式：", audioFile.type, "大小：", audioFile.size, "字节");
+
+                // 5. 构造FormData
+                const formData = new FormData();
+                formData.append("file", audioFile);
+                formData.append("user", state.userId);
+
+                // 6. 调用后端语音转文字接口
+                const response = await fetch("http://127.0.0.1:8000/api/v1/multimodal/audio-to-text", {
+                    method: "POST",
+                    body: formData,
+                    cache: "no-cache"
+                });
+
+                if (!response.ok) {
+                    throw new Error(`语音识别失败：${response.status} ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                if (result && result.text) {
+                    // 将识别结果填充到输入框
+                    document.getElementById("question-input").value = result.text;
+                    // 启用发送按钮
+                    document.getElementById("send-btn").disabled = false;
+                    alert("语音识别成功！结果已填充到输入框");
+                } else {
+                    throw new Error(result?.message || "语音识别返回空结果");
+                }
+            } catch (error) {
+                console.error("语音识别失败：", error);
+                alert(`语音转文字失败：${error.message}`);
+            } finally {
+                // 隐藏加载提示
+                loadingEl.classList.remove("show");
+                // 清空录音数据
+                state.audioChunks = [];
+            }
+        }
+    </script>
+</body>
+</html>
