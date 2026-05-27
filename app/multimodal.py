@@ -49,7 +49,7 @@ def audio_to_text(
 
     # 4. Dify接口配置
     API_KEY = settings.DIFY_API_KEY
-    URL = "https://api.dify.ai/v1/audio-to-text"
+    URL = ""
     headers = {
         "Authorization": f"Bearer {API_KEY}"
     }
