@@ -39,8 +39,8 @@ router = APIRouter(prefix="/api/v1/museum", tags=["返回文物音频讲解"])
         }
     })
 def user_tag_description(request: MuseumAudioDescriptionRequest = Body(...)):
-    API_KEY = "app-X7jKBJ0GWR3vd2LArqLDIGO8" 
-    URL = "https://api.dify.ai/v1/workflows/run"
+    API_KEY = "" 
+    URL = ""
     headers = {
       "Authorization": f"Bearer {API_KEY}",
       "Content-Type": "application/json"
