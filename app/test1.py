@@ -12,7 +12,7 @@ from app.core.exceptions import DifyCallError
 
 router = APIRouter(prefix="/api/v1/museum", tags=["流式结果查询"])
 def stream_response(query: str , user_id: str , conversation_id: str ):
-    API_KEY = "app-Zjjvyq5hZUXgmpb9cFm2cbYu" # 从环境变量获取API密钥
+    API_KEY = "" # 从环境变量获取API密钥
     
     
     URL = "https://api.dify.ai/v1/chat-messages"
