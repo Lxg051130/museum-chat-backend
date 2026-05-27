@@ -9,8 +9,8 @@ from app.core.config import settings
 router = APIRouter(prefix="/api/v1/conversations", tags=["获取会话历史"])
 @router.get("/messages")
 def get_history(conversation_id: str,user_id: str):
-    API_KEY = "app-Zjjvyq5hZUXgmpb9cFm2cbYu"  # 从环境变量获取API密钥
-    URL = "https://api.dify.ai/v1/messages"
+    API_KEY = ""  # 从环境变量获取API密钥
+    URL = ""
 
     headers = {
     "Authorization": f"Bearer {API_KEY}",
